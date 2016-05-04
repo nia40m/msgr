@@ -2,68 +2,160 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
+#include <pthread.h>
+#include <semaphore.h>
 
 #include <common.h>
 
 
-char ** clnt_nms = NULL;
-uint16_t clnt_nmbr;
+struct names {
+	char name[STR_LNGTH];
+	struct names *next;
+};
 
-char ** room_nms = NULL;
-uint16_t room_nmbr;
+struct names *clients;
+struct names *rooms;
 
 
-int init(int desc)
+/* semaphore */
+sem_t sem_accept;
+sem_t sem_add;
+
+
+int lnames_add(char *whom, struct names **whereto)
 {
-	int i;
-	struct clnt_info new;
-/* проверяем имя, не занято ли
-проверяем комнату, существует или создавать
-*/
-	read(desc, &new, sizeof(struct clnt_info));
+	struct names *new;
 
-	for (i=0; i < clnt_nmbr; i++)
-		/* доделать если слово занято !!!!!!!!!!!*/
-		if (!strcmp(new.name, *(clnt_nms + i))) {
-			printf("This nickname is bussy.\n");
-			return -1;
-		}
+	new = (struct names *) calloc(1, sizeof(struct names));
+	if (new == NULL) {
+		perror("Can't allocate memory to a new member of a list");
+		return -1;
+	}
 
-	/* creation of new client name*/
-	clnt_nms = (char **) realloc(clnt_nms, clnt_nmbr + 1);
-	/*CHECK POINTER TO NULL*/
-	*(clnt_nms + clnt_nmbr) = (char *) calloc(STR_LNGTH, 1);
-	/*CHECK POINTER TO NULL*/
-	strcpy(*(clnt_nms + clnt_nmbr), new.name);
-	clnt_nmbr++;
+	strcpy(new->name, whom);
+	new->next = *whereto;
+	*whereto = new;
 
-	for (i=0; i < room_nmbr; i++)
-		if (!strcmp(new.room, *(room_nms + i))) goto room_exist;
-
-	/* creation of new room name*/
-	room_nms = (char **) realloc(room_nms, room_nmbr + 1);
-	/*CHECK POINTER TO NULL*/
-	*(room_nms + room_nmbr) = (char *) calloc(STR_LNGTH, 1);
-	/*CHECK POINTER TO NULL*/
-	strcpy(*(room_nms + room_nmbr), new.room);
-	room_nmbr++;ды
-
-room_exist:
-	/* привязка к комнате */
+	return 0;
 }
 
 
-void * client(void * param)
+int lnames_remove(char *whom, struct names **from)
 {
-	/*нужен ли семафор? да*/
+	struct names *prev = NULL;
+	struct names *curr = *from;
+	struct names *next = curr->next;
+
+	while (curr != NULL) {
+		if (!strcmp(curr->name, whom)) {
+			if (prev == NULL)
+				*from = next;
+			else
+				prev->next = next;
+
+			free(curr);
+
+			return 0;
+		}
+
+		prev = curr;
+		curr = next;
+		next = curr->next;
+	}
+
+	return -1;
+}
+
+
+int lnames_find(char *whom, struct names **where)
+{
+	struct names *curr = *where;
+
+	if (curr == NULL)
+		return -1;
+
+	do {
+		if (!strcmp(curr->name, whom))
+			return 0;
+	} while (curr->next != NULL);
+
+	return -1;
+}
+
+
+int init_client(int desc)
+{
+	int status;
+	char response;
+	struct clnt_info new;
+
+	/* obtain client login and room */
+	read(desc, &new, sizeof(struct clnt_info));
+
+	/* checking login */
+	status = lnames_find(new.name, &clients);
+
+	/* login is already taken */
+	if (status == 0) {
+		response = ST_LBUSSY;
+		write(desc, &response, 1);
+		close(desc);
+		return -1;
+	}
+
+	/* adding a new client */
+	status = lnames_add(new.name, &clients);
+	if (status == -1) {
+		response = ST_ERROR;
+		write(desc, &response, 1);
+		close(desc);
+		return -1;
+	}
+
+	/* checking room */
+	status = lnames_find(new.room, &rooms);
+
+	/* room doesn't exist */
+	if (status == -1) {
+		/* adding a new room */
+		status = lnames_add(new.room, &rooms);
+		if (status == -1) {
+			lnames_remove(new.name, &clients);
+			response = ST_ERROR;
+			write(desc, &response, 1);
+			close(desc);
+			return -1;
+		}
+	}
+
+	response = ST_OK;
+	write(desc, &response, 1);	
+	return 0;
+}
+
+
+void *client(void *param)
+{
 	int state;
 	int clnt_desc = *(int *) param;
 
+	/* ???? */
+	sem_post(&sem_accept);
+
 	/* initialization of client */
-	state = init(clnt_desc);
-	if (state = -1) return -1;
+	sem_wait(&sem_add);
+	state = init_client(clnt_desc);
+	sem_post(&sem_add);
+	
+	if (state == -1)
+		pthread_exit(NULL);
+
+	pthread_exit(NULL);
 }
 
 
@@ -72,6 +164,7 @@ int main(void)
 	int smpl_sckt;
 	int incom_sckt;
 	int status;
+	pthread_t *thread_id;
 
 	struct in_addr ip;
 	struct sockaddr_in srvr_sckt;
@@ -107,24 +200,25 @@ int main(void)
 		return -1;
 	}
 
-	/* listenning to incoming connections */
-	incom_sckt = accept(smpl_sckt, (struct sockaddr *) &clnt_sckt,
-		&sckt_lngth);
-	if (incom_sckt == -1) {
-		perror("Can't accept incoming socket");
-		close(smpl_sckt);
-		return -1;
+	while (1) {
+		/* listenning to incoming connections */
+		incom_sckt = accept(smpl_sckt, (struct sockaddr *) &clnt_sckt,
+			&sckt_lngth);
+		if (incom_sckt == -1) {
+			perror("Can't accept incoming socket");
+			close(smpl_sckt);
+			return -1;
+		}
+
+		/* starting a thread for a new client */
+		pthread_create(thread_id, NULL, &client, &incom_sckt);
+		if (status != 0) {
+			perror("Can't create thread for new client");
+			close(smpl_sckt);
+			return -1;
+		}
+
+		/* waiting for thread to save client info */
+		sem_wait(&sem_accept);
 	}
-	/*semaforo*/
-
-	/*struct clnt_info input;
-
-	read(incom_sckt, &input, sizeof(struct clnt_info));
-
-	printf("Client name: %s\n He wants to make a room: %s\n", input.name, input.room);
-
-	getchar();*/
-
-	/* close socket */
-	close(smpl_sckt);
 }

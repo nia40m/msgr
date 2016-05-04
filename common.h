@@ -8,4 +8,13 @@ struct clnt_info {
     char room[STR_LNGTH];
 };
 
+enum states {
+    /* connection was established */
+    ST_OK = 0,
+    /* login is already taken */
+    ST_LBUSSY,
+    /* an unknown error has occured */
+    ST_ERROR
+};
+
 #endif
