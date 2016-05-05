@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 2
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <stdio.h>
@@ -7,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "common.h"
+
+extern char *optarg;
 
 /*
  * Open connection with server on given address using specific name and room.
@@ -44,11 +48,40 @@ int msgr_connect(const char *addr, const char *name, const char *room)
 	return sockfd;
 }
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
+	int opt;
 	int sockfd;
+	char addr[STR_LNGTH] = "";
+	char name[STR_LNGTH] = "";
+	char room[STR_LNGTH] = "";
 
-	sockfd = msgr_connect("127.0.0.1", "user", "testroom");
+	while ((opt = getopt(argc, argv, "a:n:r:")) != -1) {
+		switch (opt) {
+		case 'a':
+			strncpy(addr, optarg, STR_LNGTH - 1);
+			break;
+		case 'n':
+			strncpy(name, optarg, STR_LNGTH - 1);
+			break;
+		case 'r':
+			strncpy(room, optarg, STR_LNGTH - 1);
+			break;
+		default:
+			fprintf(stderr, "Usage: %s "
+				"-a address -n name -r room\n", argv[0]);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	/* Check for undefined arguments */
+	if (*addr == '\0' || *name == '\0' || *room == '\0') {
+		fprintf(stderr, "Usage: %s "
+			"-a address -n name -r room\n", argv[0]);
+		exit(EXIT_FAILURE);
+	}
+
+	sockfd = msgr_connect(addr, name, room);
 	if (sockfd == -1) {
 		perror("client");
 		exit(EXIT_FAILURE);
