@@ -19,8 +19,6 @@ struct names {
 };
 
 struct names *clients;
-struct names *rooms;
-
 
 /* semaphore */
 sem_t sem_accept;
@@ -117,25 +115,18 @@ int init_client(int desc)
 		return -1;
 	}
 
-	/* checking room */
-	status = lnames_find(new.room, &rooms);
-
-	/* room doesn't exist */
-	if (status == -1) {
-		/* adding a new room */
-		status = lnames_add(new.room, &rooms);
-		if (status == -1) {
-			lnames_remove(new.name, &clients);
-			response = ST_ERROR;
-			write(desc, &response, 1);
-			close(desc);
-			return -1;
-		}
-	}
-
 	response = ST_OK;
 	write(desc, &response, 1);	
 	return 0;
+}
+
+
+int delete_client()
+{
+/* удалить его из списка имен (не сложно)
+удалить его из списка (имен/комнат)
+если он последний, удалить комнату
+ */
 }
 
 
