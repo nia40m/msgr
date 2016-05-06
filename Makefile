@@ -4,7 +4,7 @@ CHKFLAGS = --enable=all --inconclusive --std=posix
 all: server client
 
 server: server.c
-	gcc $(CFLAGS) server.c -o server
+	gcc $(CFLAGS) -pthread server.c -o server
 
 client: client.c
 	gcc $(CFLAGS) client.c -o client
@@ -12,7 +12,7 @@ client: client.c
 sanitized: sanitized-server sanitized-client
 
 sanitized-server:
-	gcc $(CFLAGS) -fsanitize=address server.c -o server
+	gcc $(CFLAGS) -fsanitize=address -pthread server.c -o server
 
 sanitized-client:
 	gcc $(CFLAGS) -fsanitize=address client.c -o client
