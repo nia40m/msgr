@@ -241,7 +241,7 @@ int main(void)
 	/* information for binding */
 	ip.s_addr = htonl(INADDR_ANY);
 	srvr_sckt.sin_family = AF_INET;
-	srvr_sckt.sin_port = htons(1488);
+	srvr_sckt.sin_port = htons(MSGR_PORT);
 	srvr_sckt.sin_addr = ip;
 
 	/* first step is to make simple socket */
