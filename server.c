@@ -10,7 +10,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#include <common.h>
+#include "common.h"
 
 
 struct names {
@@ -19,6 +19,17 @@ struct names {
 };
 
 struct names *clients;
+
+
+struct connection {
+	char name[STR_LNGTH];
+	char room[STR_LNGTH];
+	int desc;
+	struct connection *next;
+};
+
+struct connection *chat;
+
 
 /* semaphore */
 sem_t sem_accept;
@@ -86,11 +97,60 @@ int lnames_find(char *whom, struct names **where)
 }
 
 
-int init_client(int desc)
+struct connection *lconn_add(struct connection whom,
+	struct connection **whereto)
+{
+	struct connection *new;
+
+	new = (struct connection *) calloc(1, sizeof(struct connection));
+	if (new == NULL) {
+		perror("Can't allocate memory to a new member of a list");
+		return NULL;
+	}
+
+	*new = whom;
+	new->next = *whereto;
+	*whereto = new;
+
+	return new;
+}
+
+
+int lconn_remove(int whom, struct connection **from)
+{
+	struct connection *prev = NULL;
+	struct connection *curr = *from;
+	struct connection *next = curr->next;
+
+	while (curr != NULL) {
+		if (curr->desc == whom) {
+			if (prev == NULL)
+				*from = next;
+			else
+				prev->next = next;
+
+			free(curr);
+
+			return 0;
+		}
+
+		prev = curr;
+		curr = next;
+		next = curr->next;
+	}
+
+	return -1;
+}
+
+
+
+struct connection *init_client(int desc)
 {
 	int status;
 	char response;
 	struct clnt_info new;
+	struct connection new_conn;
+	struct connection *curr;
 
 	/* obtain client login and room */
 	read(desc, &new, sizeof(struct clnt_info));
@@ -102,8 +162,7 @@ int init_client(int desc)
 	if (status == 0) {
 		response = ST_LBUSSY;
 		write(desc, &response, 1);
-		close(desc);
-		return -1;
+		return NULL;
 	}
 
 	/* adding a new client */
@@ -111,17 +170,31 @@ int init_client(int desc)
 	if (status == -1) {
 		response = ST_ERROR;
 		write(desc, &response, 1);
-		close(desc);
-		return -1;
+		return NULL;
+	}
+
+	/* copying name, room and descriptor */
+	strcpy(new_conn.name, new.name);
+	strcpy(new_conn.room, new.room);
+	new_conn.desc = desc;
+	new_conn.next = NULL;
+
+	/* adding new object to chat list */
+	curr = lconn_add(new_conn, &chat);
+	if (curr == NULL) {
+		response = ST_ERROR;
+		write(desc, &response, 1);
+		lnames_remove(new.name, &clients);
+		return NULL;
 	}
 
 	response = ST_OK;
-	write(desc, &response, 1);	
-	return 0;
+	write(desc, &response, 1);
+	return curr;
 }
 
 
-int delete_client()
+int delete_client(void)
 {
 /* удалить его из списка имен (не сложно)
 удалить его из списка (имен/комнат)
@@ -132,20 +205,23 @@ int delete_client()
 
 void *client(void *param)
 {
-	int state;
+	struct connection *curr;
 	int clnt_desc = *(int *) param;
 
-	/* ???? */
+	/* making main function to continue */
 	sem_post(&sem_accept);
 
 	/* initialization of client */
 	sem_wait(&sem_add);
-	state = init_client(clnt_desc);
+	curr = init_client(clnt_desc);
 	sem_post(&sem_add);
-	
-	if (state == -1)
-		pthread_exit(NULL);
 
+	if (curr == NULL) {
+		close(clnt_desc);
+		pthread_exit(NULL);
+	}
+
+	close(clnt_desc);
 	pthread_exit(NULL);
 }
 
@@ -190,6 +266,10 @@ int main(void)
 		close(smpl_sckt);
 		return -1;
 	}
+
+	/* initialization of semaphores */
+	sem_init(&sem_accept, 0, 0);
+	sem_init(&sem_add, 0, 1);
 
 	while (1) {
 		/* listenning to incoming connections */
