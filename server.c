@@ -143,7 +143,6 @@ int lconn_remove(int whom, struct connection **from)
 }
 
 
-
 struct connection *init_client(int desc)
 {
 	int status;
@@ -196,10 +195,11 @@ struct connection *init_client(int desc)
 
 int delete_client(void)
 {
-/* удалить его из списка имен (не сложно)
-удалить его из списка (имен/комнат)
-если он последний, удалить комнату
- */
+/*
+* удалить его из списка имен
+* удалить его из списка объектов чата
+*/
+	return 0;
 }
 
 
@@ -231,7 +231,7 @@ int main(void)
 	int smpl_sckt;
 	int incom_sckt;
 	int status;
-	pthread_t *thread_id;
+	pthread_t thread_id;
 
 	struct in_addr ip;
 	struct sockaddr_in srvr_sckt;
@@ -282,7 +282,7 @@ int main(void)
 		}
 
 		/* starting a thread for a new client */
-		pthread_create(thread_id, NULL, &client, &incom_sckt);
+		pthread_create(&thread_id, NULL, &client, &incom_sckt);
 		if (status != 0) {
 			perror("Can't create thread for new client");
 			close(smpl_sckt);
