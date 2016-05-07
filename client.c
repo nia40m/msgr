@@ -22,6 +22,7 @@ int msgr_connect(const char *addr, const char *name, const char *room)
 	int len;
 	int sockfd;
 	int status;
+	char answer;
 	struct sockaddr_in address;
 	struct clnt_info inf;
 
@@ -43,6 +44,13 @@ int msgr_connect(const char *addr, const char *name, const char *room)
 
 	status = write(sockfd, &inf, sizeof(inf));
 	if (status == -1)
+		return -1;
+
+	status = read(sockfd, &answer, 1);
+	if (status == -1)
+		return -1;
+
+	if (answer != ST_OK)
 		return -1;
 
 	return sockfd;
