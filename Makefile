@@ -7,7 +7,7 @@ server: server.c
 	gcc $(CFLAGS) server.c -o server
 
 client: client.c
-	gcc $(CFLAGS) client.c -o client
+	gcc $(CFLAGS) -pthread client.c -o client
 
 sanitized: sanitized-server sanitized-client
 
