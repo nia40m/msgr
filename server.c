@@ -208,7 +208,7 @@ void room_send(char *msg, char *room, struct connection **exept)
 
 	while (temp != NULL) {
 		if (temp != *exept && !strcmp(room, temp->room))
-			write(temp->desc, msg, BUFF_SIZE);
+			write(temp->desc, msg, MSG_BUFF);
 
 		temp = temp->next;
 	}
@@ -220,7 +220,7 @@ void room_send(char *msg, char *room, struct connection **exept)
 void *client(void *param)
 {
 	int len;
-	char buff[BUFF_SIZE];
+	char buff[MSG_BUFF];
 	struct connection *curr;
 	int clnt_desc = *(int *) param;
 
@@ -238,10 +238,10 @@ void *client(void *param)
 		pthread_exit(NULL);
 	}
 
-	memset(buff, 0, BUFF_SIZE);
+	memset(buff, 0, MSG_BUFF);
 
 	len = strlen(curr->name)+2;
-	sprintf(buff, "%s has joined to the room.", curr->name);
+	sprintf(buff, "%s has joined to the room.\n", curr->name);
 
 	room_send(buff, curr->room, &curr);
 
@@ -251,13 +251,13 @@ void *client(void *param)
 		int status;
 
 		/* removing old text */
-		memset(buff+len, 0, BUFF_SIZE-len);
+		memset(buff+len, 0, MSG_BUFF-len);
 
-		status = read(clnt_desc, buff+len, BUFF_SIZE-len);
+		status = read(clnt_desc, buff+len, BUFF_SIZE);
 
 		/* check if client was disconnected or error reading */
 		if (status <= 0) {
-			sprintf(buff, "%s has disconnected from the room.",
+			sprintf(buff, "%s has disconnected from the room.\n",
 				curr->name);
 
 			room_send(buff, curr->room, &curr);
