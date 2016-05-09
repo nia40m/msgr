@@ -192,8 +192,11 @@ struct connection *init_client(int desc)
 
 	response = ST_OK;
 	status = write(desc, &response, 1);
-	if (status <= 0)
+	if (status <= 0) {
+		lconn_remove(curr->desc, &chat);
+		lnames_remove(new.name, &clients);
 		return NULL;
+	}
 
 	return curr;
 }
@@ -202,13 +205,14 @@ struct connection *init_client(int desc)
 void room_send(char *msg, char *room, struct connection **exept)
 {
 	struct connection *temp = chat;
+	uint16_t len = strlen(msg);
 
 	/* prevent of editing list of chat objects */
 	sem_wait(&sem_chat);
 
 	while (temp != NULL) {
 		if (temp != *exept && !strcmp(room, temp->room))
-			write(temp->desc, msg, MSG_BUFF);
+			write(temp->desc, msg, len);
 
 		temp = temp->next;
 	}
@@ -219,7 +223,7 @@ void room_send(char *msg, char *room, struct connection **exept)
 
 void *client(void *param)
 {
-	int len;
+	uint16_t len;
 	char buff[MSG_BUFF];
 	struct connection *curr;
 	int clnt_desc = *(int *) param;
@@ -240,12 +244,11 @@ void *client(void *param)
 
 	memset(buff, 0, MSG_BUFF);
 
-	len = strlen(curr->name)+2;
 	sprintf(buff, "%s has joined to the room.\n", curr->name);
 
 	room_send(buff, curr->room, &curr);
 
-	sprintf(buff, "%s->", curr->name);
+	len = sprintf(buff, "%s->", curr->name);
 
 	while (1) {
 		int status;
