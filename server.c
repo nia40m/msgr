@@ -33,7 +33,7 @@ struct connection *chat;
 
 /* semaphore */
 sem_t sem_accept;
-sem_t sem_add;
+sem_t sem_chat;
 
 
 int lnames_add(char *whom, struct names **whereto)
@@ -66,7 +66,6 @@ int lnames_remove(char *whom, struct names **from)
 				*from = next;
 			else
 				prev->next = next;
-
 			free(curr);
 
 			return 0;
@@ -88,10 +87,12 @@ int lnames_find(char *whom, struct names **where)
 	if (curr == NULL)
 		return -1;
 
-	do {
+	while (curr != NULL) {
 		if (!strcmp(curr->name, whom))
 			return 0;
-	} while (curr->next != NULL);
+
+		curr = curr->next;
+	}
 
 	return -1;
 }
@@ -152,7 +153,9 @@ struct connection *init_client(int desc)
 	struct connection *curr;
 
 	/* obtain client login and room */
-	read(desc, &new, sizeof(struct clnt_info));
+	status = read(desc, &new, sizeof(struct clnt_info));
+	if (status <= 0)
+		return NULL;
 
 	/* checking login */
 	status = lnames_find(new.name, &clients);
@@ -188,23 +191,40 @@ struct connection *init_client(int desc)
 	}
 
 	response = ST_OK;
-	write(desc, &response, 1);
+	status = write(desc, &response, 1);
+	if (status <= 0) {
+		lconn_remove(curr->desc, &chat);
+		lnames_remove(new.name, &clients);
+		return NULL;
+	}
+
 	return curr;
 }
 
 
-int delete_client(void)
+void room_send(char *msg, char *room, struct connection **exept)
 {
-/*
-* удалить его из списка имен
-* удалить его из списка объектов чата
-*/
-	return 0;
+	struct connection *temp = chat;
+	uint16_t len = strlen(msg);
+
+	/* prevent of editing list of chat objects */
+	sem_wait(&sem_chat);
+
+	while (temp != NULL) {
+		if (temp != *exept && !strcmp(room, temp->room))
+			write(temp->desc, msg, len);
+
+		temp = temp->next;
+	}
+
+	sem_post(&sem_chat);
 }
 
 
 void *client(void *param)
 {
+	uint16_t len;
+	char buff[MSG_BUFF];
 	struct connection *curr;
 	int clnt_desc = *(int *) param;
 
@@ -212,17 +232,50 @@ void *client(void *param)
 	sem_post(&sem_accept);
 
 	/* initialization of client */
-	sem_wait(&sem_add);
+	sem_wait(&sem_chat);
 	curr = init_client(clnt_desc);
-	sem_post(&sem_add);
+	sem_post(&sem_chat);
 
+	/* bad initialization */
 	if (curr == NULL) {
 		close(clnt_desc);
 		pthread_exit(NULL);
 	}
 
-	close(clnt_desc);
-	pthread_exit(NULL);
+	memset(buff, 0, MSG_BUFF);
+
+	sprintf(buff, "%s has joined to the room.\n", curr->name);
+
+	room_send(buff, curr->room, &curr);
+
+	len = sprintf(buff, "%s->", curr->name);
+
+	while (1) {
+		int status;
+
+		/* removing old text */
+		memset(buff+len, 0, MSG_BUFF-len);
+
+		status = read(clnt_desc, buff+len, BUFF_SIZE);
+
+		/* check if client was disconnected or error reading */
+		if (status <= 0) {
+			sprintf(buff, "%s has disconnected from the room.\n",
+				curr->name);
+
+			room_send(buff, curr->room, &curr);
+
+			sem_wait(&sem_chat);
+			lnames_remove(curr->name, &clients);
+			lconn_remove(clnt_desc, &chat);
+			sem_post(&sem_chat);
+
+			close(clnt_desc);
+			pthread_exit(NULL);
+		}
+
+		room_send(buff, curr->room, &curr);
+	}
 }
 
 
@@ -269,7 +322,7 @@ int main(void)
 
 	/* initialization of semaphores */
 	sem_init(&sem_accept, 0, 0);
-	sem_init(&sem_add, 0, 1);
+	sem_init(&sem_chat, 0, 1);
 
 	while (1) {
 		/* listenning to incoming connections */

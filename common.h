@@ -2,7 +2,11 @@
 #define _COMMON_H
 
 #define MSGR_PORT 1488
+
+#define BUFF_SIZE 4096
 #define STR_LNGTH 256
+#define EXTRA STR_LNGTH
+#define MSG_BUFF BUFF_SIZE+STR_LNGTH+EXTRA
 
 struct clnt_info {
     char name[STR_LNGTH];
@@ -19,4 +23,3 @@ enum states {
 };
 
 #endif
-
