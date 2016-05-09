@@ -87,10 +87,12 @@ int lnames_find(char *whom, struct names **where)
 	if (curr == NULL)
 		return -1;
 
-	do {
+	while (curr != NULL) {
 		if (!strcmp(curr->name, whom))
 			return 0;
-	} while (curr->next != NULL);
+
+		curr = curr->next;
+	}
 
 	return -1;
 }
