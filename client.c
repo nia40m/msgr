@@ -12,14 +12,25 @@
 #include <time.h>
 #include "common.h"
 
+enum connect_error {
+	CONN_FAIL = -1,		/* Connection failure (details in errno) */
+	CONN_NAMEUSED = -2,	/* Name already in use */
+	CONN_SRVERROR = -3,	/* Server error */
+	CONN_ERROR = -4		/* Common connection error */
+};
+
 extern char *optarg;
 
 int sockfd;
 
 /*
  * Open connection with server on given address using specific name and room.
- * Return value: socket fd on success or -1 on connection failure
- * (in this case check errno for details).
+ * Return value:
+ *	socket fd on success;
+ *	CONN_FAIL on connection failure (in this case check errno for details);
+ *	CONN_NAMEUSED if chosen name already in use;
+ *	CONN_SRVERROR on server-side error;
+ *	CONN_ERROR on common connection errors.
  */
 int msgr_connect(const char *addr, const char *name, const char *room)
 {
@@ -32,7 +43,7 @@ int msgr_connect(const char *addr, const char *name, const char *room)
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd == -1)
-		return -1;
+		return CONN_FAIL;
 
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = inet_addr(addr);
@@ -41,23 +52,33 @@ int msgr_connect(const char *addr, const char *name, const char *room)
 
 	status = connect(sockfd, (struct sockaddr *)&address, len);
 	if (status == -1)
-		return -1;
+		return CONN_FAIL;
 
 	strncpy(inf.name, name, STR_LNGTH);
 	strncpy(inf.room, room, STR_LNGTH);
 
 	status = write(sockfd, &inf, sizeof(inf));
 	if (status == -1)
-		return -1;
+		return CONN_FAIL;
 
 	status = read(sockfd, &answer, 1);
 	if (status == -1)
-		return -1;
+		return CONN_FAIL;
 
-	if (answer != ST_OK)
-		return -1;
+	if (answer == ST_OK)
+		return sockfd;
 
-	return sockfd;
+	/* Close socket on server deny */
+	close(sockfd);
+
+	switch (answer) {
+	case ST_LBUSSY:
+		return CONN_NAMEUSED;
+	case ST_ERROR:
+		return CONN_SRVERROR;
+	}
+
+	return CONN_ERROR;
 }
 
 void *reciever(void *arg)
@@ -151,8 +172,19 @@ int main(int argc, char *argv[])
 	}
 
 	sockfd = msgr_connect(addr, name, room);
-	if (sockfd == -1) {
+	switch (sockfd) {
+	case CONN_FAIL:
 		perror("client");
+		exit(EXIT_FAILURE);
+	case CONN_NAMEUSED:
+		fprintf(stderr, "Requested username currently in use. "
+			"Please choose another name and try again.\n");
+		exit(EXIT_FAILURE);
+	case CONN_SRVERROR:
+		fprintf(stderr, "Server error.\n");
+		exit(EXIT_FAILURE);
+	case CONN_ERROR:
+		fprintf(stderr, "Connection error.\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -164,7 +196,7 @@ int main(int argc, char *argv[])
 	pthread_join(thread_sender, NULL);
 	pthread_cancel(thread_reciever);
 
-	close(sockfd)
+	close(sockfd);
 	printf("Connection closed\n");
 	exit(EXIT_SUCCESS);
 }
