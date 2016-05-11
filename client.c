@@ -109,8 +109,13 @@ void *reciever(void *arg)
 	return NULL;
 }
 
-int send_msg(const char *msg)
+int send_msg(char *msg)
 {
+	/* Remove trailing newline */
+	char *s;
+	for (s = msg; *s != '\n'; ++s);
+	*s = '\0';
+
 	/* Add 1 because strlen calculates length of string excluding '\0' */
 	int status = write(sockfd, msg, strlen(msg) + 1);
 
