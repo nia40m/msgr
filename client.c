@@ -85,7 +85,7 @@ void *reciever(void *arg)
 {
 	char str_msg[BUFSIZ];
 	time_t cur_time;
-	struct tm *tm_ptr;
+	struct tm tm_struct;
 
 	while (1) {
 		int status = read(sockfd, &str_msg, BUFSIZ);
@@ -99,10 +99,10 @@ void *reciever(void *arg)
 		}
 
 		time(&cur_time);
-		tm_ptr = localtime(&cur_time);
+		localtime_r(&cur_time, &tm_struct);
 
 		printf("[%02d:%02d:%02d] %s\n",
-			tm_ptr->tm_hour, tm_ptr->tm_min, tm_ptr->tm_sec,
+			tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec,
 			str_msg);
 	}
 
