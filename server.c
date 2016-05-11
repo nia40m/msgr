@@ -205,7 +205,7 @@ struct connection *init_client(int desc)
 void room_send(char *msg, char *room, struct connection **exept)
 {
 	struct connection *temp = chat;
-	uint16_t len = strlen(msg);
+	uint16_t len = strlen(msg) + 1;
 
 	/* prevent of editing list of chat objects */
 	sem_wait(&sem_chat);
