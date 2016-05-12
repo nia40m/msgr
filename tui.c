@@ -2,10 +2,34 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <form.h>
+
+char *strtrim(char *str)
+{
+	char *end;
+
+	while (isspace(*str))
+		++str;
+
+	/* Blank string? */
+	if (*str == '\0')
+		return str;
+
+	/* Trim trailing whitespace */
+	end = str + strlen(str) - 1;
+	while (end > str && isspace(*end))
+		--end;
+
+	/* Null-terminate the string */
+	*(end + 1) = '\0';
+
+	return str;
+}
 
 int main(int argc, char const *argv[])
 {
+	WINDOW *msglog;
 	FIELD *my_field[2];
 	FORM *my_form;
 	int ch;
@@ -15,6 +39,12 @@ int main(int argc, char const *argv[])
 	cbreak();
 	noecho();
 	keypad(stdscr, TRUE);
+
+	/* Create subwindow to display messages log */
+	msglog = subwin(stdscr, LINES - 2, COLS, 0, 0);
+
+	/* Enable scroll in messages log */
+	scrollok(msglog, 1);
 
 	my_field[0] = new_field(1, COLS - 4, LINES - 2, 2, 13, 0);
 	my_field[1] = NULL;
@@ -32,17 +62,17 @@ int main(int argc, char const *argv[])
 	pos_form_cursor(my_form);
 
 	/* Loop through to get user requests */
-	while ((ch = getch()) != '\n') {
+	while ((ch = getch()) != KEY_EXIT) {
 		switch (ch) {
-		case KEY_F(2):
+		case '\n':
 			/* Update field buffer */
 			form_driver(my_form, REQ_VALIDATION);
 
-			move(2, 2);
-			printw("%s", field_buffer(my_field[0], 0));
+			wprintw(msglog, "%s\n", 
+				strtrim(field_buffer(my_field[0], 0)));
 
 			form_driver(my_form, REQ_CLR_FIELD);
-			refresh();
+			wrefresh(msglog);
 
 			pos_form_cursor(my_form);
 			break;
