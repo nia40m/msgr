@@ -11,6 +11,9 @@ FORM *my_form;
 
 char buf[BUFSIZ];
 
+/*
+ * Trim leading and trailing whitespace.
+ */
 char *strtrim(char *str)
 {
 	char *end;
@@ -33,6 +36,9 @@ char *strtrim(char *str)
 	return str;
 }
 
+/*
+ * Initialization of TUI.
+ */
 int tui_init(void)
 {
 	if (initscr() == NULL)
@@ -74,6 +80,10 @@ int tui_init(void)
 	return 0;
 }
 
+/*
+ * Free all allocated resources.
+ * This must always be called after using TUI.
+ */
 void tui_end()
 {
 	unpost_form(my_form);
@@ -82,6 +92,9 @@ void tui_end()
 	endwin();
 }
 
+/*
+ *Add message to messages log.
+ */
 void tui_add_msg(const char *name, const char *msg)
 {
 	wattron(msglog, COLOR_PAIR(1));
@@ -93,7 +106,9 @@ void tui_add_msg(const char *name, const char *msg)
 	pos_form_cursor(my_form);
 }
 
-/* Locking call, copies string from input field to s */
+/*
+ *Locking call, copies string from input field to s.
+ */
 void tui_get_str(char *s, int size)
 {
 	int ch;
