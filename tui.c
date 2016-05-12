@@ -5,6 +5,12 @@
 #include <ctype.h>
 #include <form.h>
 
+WINDOW *msglog;
+FIELD *my_field[2];
+FORM *my_form;
+
+char buf[BUFSIZ];
+
 char *strtrim(char *str)
 {
 	char *end;
@@ -27,15 +33,19 @@ char *strtrim(char *str)
 	return str;
 }
 
-int main(int argc, char const *argv[])
+int tui_init(void)
 {
-	WINDOW *msglog;
-	FIELD *my_field[2];
-	FORM *my_form;
-	int ch;
-	char str[255] = "";
+	if (initscr() == NULL)
+		return -1;
 
-	initscr();
+	/* Init colors if possible */
+	if (has_colors())
+		start_color();
+
+	/* Create color pair for nickname */
+	init_pair(1, COLOR_RED, COLOR_BLACK);
+	init_pair(2, COLOR_CYAN, COLOR_BLACK);
+
 	cbreak();
 	noecho();
 	keypad(stdscr, TRUE);
@@ -49,7 +59,7 @@ int main(int argc, char const *argv[])
 	my_field[0] = new_field(1, COLS - 4, LINES - 2, 2, 13, 0);
 	my_field[1] = NULL;
 
-	set_field_back(my_field[0], A_UNDERLINE);
+	set_field_back(my_field[0], COLOR_PAIR(2) | A_UNDERLINE);
 	field_opts_off(my_field[0], O_AUTOSKIP);
 	field_opts_off(my_field[0], O_WRAP);	// Disable wrap by words
 
@@ -61,21 +71,35 @@ int main(int argc, char const *argv[])
 	refresh();
 	pos_form_cursor(my_form);
 
-	/* Loop through to get user requests */
-	while ((ch = getch()) != KEY_EXIT) {
+	return 0;
+}
+
+void tui_end()
+{
+	unpost_form(my_form);
+	free_form(my_form);
+	free_field(my_field[0]);
+	endwin();
+}
+
+void tui_add_msg(const char *name, const char *msg)
+{
+	wattron(msglog, COLOR_PAIR(1));
+	wprintw(msglog, "%s -> ", name);
+	wattroff(msglog, COLOR_PAIR(1));
+
+	wprintw(msglog, "%s\n", msg);
+	wrefresh(msglog);
+	pos_form_cursor(my_form);
+}
+
+/* Locking call, copies string from input field to s */
+void tui_get_str(char *s, int size)
+{
+	int ch;
+
+	while ((ch = getch()) != '\n') {
 		switch (ch) {
-		case '\n':
-			/* Update field buffer */
-			form_driver(my_form, REQ_VALIDATION);
-
-			wprintw(msglog, "%s\n", 
-				strtrim(field_buffer(my_field[0], 0)));
-
-			form_driver(my_form, REQ_CLR_FIELD);
-			wrefresh(msglog);
-
-			pos_form_cursor(my_form);
-			break;
 		case KEY_LEFT:
 			form_driver(my_form, REQ_PREV_CHAR);
 			break;
@@ -94,13 +118,29 @@ int main(int argc, char const *argv[])
 		}
 	}
 
-	unpost_form(my_form);
-	free_form(my_form);
-	free_field(my_field[0]);
+	/* Update field buffer */
+	form_driver(my_form, REQ_VALIDATION);
 
-	endwin();
+	strncpy(s, strtrim(field_buffer(my_field[0], 0)), size);
+	form_driver(my_form, REQ_CLR_FIELD);
+}
 
-	puts(str);
+int main(int argc, char const *argv[])
+{
+	char buf[BUFSIZ] = "";
+
+	tui_init();
+
+	while (1) {
+		tui_get_str(buf, BUFSIZ - 1);
+
+		if (buf[0] == '/' && strcmp(buf, "/exit") == 0)
+			break;
+
+		tui_add_msg("me", buf);
+	}
+
+	tui_end();
 
 	return 0;
 }
