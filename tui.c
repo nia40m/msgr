@@ -96,11 +96,15 @@ void tui_end()
  */
 void tui_add_msg(const char *name, const char *msg)
 {
-	wattron(msglog, COLOR_PAIR(1));
-	wprintw(msglog, "%s -> ", name);
-	wattroff(msglog, COLOR_PAIR(1));
+	if (name != NULL) {
+		wattron(msglog, COLOR_PAIR(1));
+		wprintw(msglog, "%s -> ", name);
+		wattroff(msglog, COLOR_PAIR(1));
+	}
 
-	wprintw(msglog, "%s\n", msg);
+	if (msg != NULL)
+		wprintw(msglog, "%s\n", msg);
+	
 	wrefresh(msglog);
 	pos_form_cursor(my_form);
 }
