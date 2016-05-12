@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <form.h>
+#include "tui.h"
 
 WINDOW *msglog;
 FIELD *my_field[2];
@@ -12,7 +13,7 @@ FORM *my_form;
 /*
  * Trim leading and trailing whitespace.
  */
-char *strtrim(char *str)
+static char *strtrim(char *str)
 {
 	char *end;
 
@@ -136,24 +137,4 @@ void tui_get_str(char *s, int size)
 
 	strncpy(s, strtrim(field_buffer(my_field[0], 0)), size);
 	form_driver(my_form, REQ_CLR_FIELD);
-}
-
-int main(int argc, char const *argv[])
-{
-	char buf[BUFSIZ] = "";
-
-	tui_init();
-
-	while (1) {
-		tui_get_str(buf, BUFSIZ - 1);
-
-		if (buf[0] == '/' && strcmp(buf, "/exit") == 0)
-			break;
-
-		tui_add_msg("me", buf);
-	}
-
-	tui_end();
-
-	return 0;
 }

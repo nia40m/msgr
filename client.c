@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <time.h>
 #include "common.h"
+#include "tui.h"
 
 enum connect_error {
 	CONN_FAIL = -1,		/* Connection failure (details in errno) */
@@ -84,8 +85,6 @@ int msgr_connect(const char *addr, const char *name, const char *room)
 void *reciever(void *arg)
 {
 	char str_msg[BUFSIZ];
-	time_t cur_time;
-	struct tm tm_struct;
 
 	while (1) {
 		int status = read(sockfd, &str_msg, BUFSIZ);
@@ -98,12 +97,7 @@ void *reciever(void *arg)
 			break;
 		}
 
-		time(&cur_time);
-		localtime_r(&cur_time, &tm_struct);
-
-		printf("[%02d:%02d:%02d] %s\n",
-			tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec,
-			str_msg);
+		tui_add_msg("sender", str_msg);
 	}
 
 	return NULL;
@@ -111,11 +105,6 @@ void *reciever(void *arg)
 
 int send_msg(char *msg)
 {
-	/* Remove trailing newline */
-	char *s;
-	for (s = msg; *s != '\n'; ++s);
-	*s = '\0';
-
 	/* Add 1 because strlen calculates length of string excluding '\0' */
 	int status = write(sockfd, msg, strlen(msg) + 1);
 
@@ -125,17 +114,21 @@ int send_msg(char *msg)
 	return 0;
 }
 
-void *sender(void *arg)
+/*
+ * Message sender thread. Name - pointer to username string.
+ */
+void *sender(void *name)
 {
 	char buf[BUFSIZ];
 
 	while (1) {
-		if (fgets(buf, BUFSIZ, stdin) == NULL)
-			break;
-		if (buf[0] == '/') {
-			if (strcmp(buf + 1, "exit\n") == 0)
-				return NULL;
-		}
+		tui_get_str(buf, BUFSIZ - 1);
+
+		/* Close sender on /exit command */
+		if (buf[0] == '/' && strcmp(buf + 1, "exit") == 0)
+			return NULL;
+
+		tui_add_msg((char *)name, buf);
 		send_msg(buf);
 	}
 
@@ -193,15 +186,16 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Connection successfull\n");
+	tui_init();
 
 	pthread_create(&thread_reciever, NULL, &reciever, NULL);
-	pthread_create(&thread_sender, NULL, &sender, NULL);
+	pthread_create(&thread_sender, NULL, &sender, name);
 
 	pthread_join(thread_sender, NULL);
 	pthread_cancel(thread_reciever);
 
+	tui_end();
+
 	close(sockfd);
-	printf("Connection closed\n");
 	exit(EXIT_SUCCESS);
 }
