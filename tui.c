@@ -9,8 +9,6 @@ WINDOW *msglog;
 FIELD *my_field[2];
 FORM *my_form;
 
-char buf[BUFSIZ];
-
 /*
  * Trim leading and trailing whitespace.
  */
