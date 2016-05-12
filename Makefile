@@ -6,8 +6,14 @@ all: server client
 server: server.c
 	gcc $(CFLAGS) server.c -o server
 
-client: client.c
-	gcc $(CFLAGS) -pthread client.c -o client
+client: client.o tui.o
+	gcc $(CFLAGS) -o client -pthread client.o tui.o -lform -lncurses
+
+client.o: client.c
+	gcc $(CFLAGS) -c client.c
+
+tui.o: tui.c
+	gcc $(CFLAGS) -c tui.c
 
 sanitized: sanitized-server sanitized-client
 
