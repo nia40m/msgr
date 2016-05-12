@@ -202,10 +202,9 @@ struct connection *init_client(int desc)
 }
 
 
-void room_send(char *msg, char *room, struct connection **exept)
+void room_send(char *msg, uint16_t len, char *room, struct connection **exept)
 {
 	struct connection *temp = chat;
-	uint16_t len = strlen(msg) + 1;
 
 	/* prevent of editing list of chat objects */
 	sem_wait(&sem_chat);
@@ -223,7 +222,8 @@ void room_send(char *msg, char *room, struct connection **exept)
 
 void *client(void *param)
 {
-	uint16_t len;
+	uint16_t msg_len;
+	uint16_t login_len;
 	char buff[MSG_BUFF];
 	struct connection *curr;
 	int clnt_desc = *(int *) param;
@@ -242,28 +242,30 @@ void *client(void *param)
 		pthread_exit(NULL);
 	}
 
-	memset(buff, 0, MSG_BUFF);
+	/*
+	 * writing client login to the string
+	 * "+ 1" because sprintf doesn't count the \0 symbol
+	 */
+	login_len = sprintf(buff, "%s", curr->name) + 1;
 
-	sprintf(buff, "%s has joined to the room.\n", curr->name);
+	/*
+	 * writing msg to the string
+	 * "+ 1" because sprintf doesn't count the \0 symbol
+	 */
+	msg_len = sprintf(buff + login_len, "has joined the room") + 1;
 
-	room_send(buff, curr->room, &curr);
-
-	len = sprintf(buff, "%s->", curr->name);
+	room_send(buff, login_len + msg_len, curr->room, &curr);
 
 	while (1) {
-		int status;
 
-		/* removing old text */
-		memset(buff+len, 0, MSG_BUFF-len);
-
-		status = read(clnt_desc, buff+len, BUFF_SIZE);
+		msg_len = read(clnt_desc, buff + login_len, BUFF_SIZE);
 
 		/* check if client was disconnected or error reading */
-		if (status <= 0) {
-			sprintf(buff, "%s has disconnected from the room.\n",
-				curr->name);
+		if (msg_len <= 0) {
+			msg_len = sprintf(buff + login_len,
+				"has left the room") + 1;
 
-			room_send(buff, curr->room, &curr);
+			room_send(buff, login_len + msg_len, curr->room, &curr);
 
 			sem_wait(&sem_chat);
 			lnames_remove(curr->name, &clients);
@@ -274,7 +276,7 @@ void *client(void *param)
 			pthread_exit(NULL);
 		}
 
-		room_send(buff, curr->room, &curr);
+		room_send(buff, login_len + msg_len, curr->room, &curr);
 	}
 }
 
