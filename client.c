@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-#include <time.h>
 #include "common.h"
 #include "tui.h"
 

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <form.h>
+#include <time.h>
 #include "tui.h"
 
 WINDOW *msglog;
@@ -50,6 +51,7 @@ int tui_init(void)
 	/* Create color pair for nickname */
 	init_pair(1, COLOR_RED, COLOR_BLACK);
 	init_pair(2, COLOR_CYAN, COLOR_BLACK);
+	init_pair(3, COLOR_GREEN, COLOR_BLACK);
 
 	cbreak();
 	noecho();
@@ -92,25 +94,38 @@ void tui_end()
 }
 
 /*
- *Add message to messages log.
+ * Add message to messages log.
  */
 void tui_add_msg(const char *name, const char *msg)
 {
+	time_t cur_time;
+	struct tm tm_struct;
+
+	time(&cur_time);
+	localtime_r(&cur_time, &tm_struct);
+
+	wattron(msglog, COLOR_PAIR(3));
+	wprintw(msglog, "[%02d:%02d:%02d] ",
+		tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+	wattroff(msglog, COLOR_PAIR(3));
+
 	if (name != NULL) {
-		wattron(msglog, COLOR_PAIR(1));
-		wprintw(msglog, "%s -> ", name);
+		wattron(msglog, COLOR_PAIR(1) | A_BOLD);
+		wprintw(msglog, "%s", name);
+		wattroff(msglog, A_BOLD);
+		wprintw(msglog, " -> ");
 		wattroff(msglog, COLOR_PAIR(1));
 	}
 
 	if (msg != NULL)
 		wprintw(msglog, "%s\n", msg);
-	
+
 	wrefresh(msglog);
 	pos_form_cursor(my_form);
 }
 
 /*
- *Locking call, copies string from input field to s.
+ * Locking call, copies string from input field to s.
  */
 void tui_get_str(char *s, int size)
 {
