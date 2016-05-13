@@ -18,10 +18,10 @@ tui.o: tui.c
 sanitized: sanitized-server sanitized-client
 
 sanitized-server:
-	gcc $(CFLAGS) -fsanitize=address server.c -o server
+	gcc $(CFLAGS) -pthread -fsanitize=address server.c -o server
 
 sanitized-client:
-	gcc $(CFLAGS) -fsanitize=address client.c -o client
+	gcc $(CFLAGS) -pthread -fsanitize=address client.c tui.c -o client -lform -lncurses
 
 check: check-server check-client
 
@@ -34,4 +34,5 @@ check-client:
 	./checkpatch.pl --no-tree -f client.c
 
 clean:
-	rm server client
+	rm -f *.o
+	rm -f server client
