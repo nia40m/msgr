@@ -6,16 +6,22 @@ all: server client
 server: server.c
 	gcc $(CFLAGS) -pthread server.c -o server
 
-client: client.c
-	gcc $(CFLAGS) client.c -o client
+client: client.o tui.o
+	gcc $(CFLAGS) -o client -pthread client.o tui.o -lform -lncurses
+
+client.o: client.c
+	gcc $(CFLAGS) -c client.c
+
+tui.o: tui.c
+	gcc $(CFLAGS) -c tui.c
 
 sanitized: sanitized-server sanitized-client
 
 sanitized-server:
-	gcc $(CFLAGS) -fsanitize=address -pthread server.c -o server
+	gcc $(CFLAGS) -pthread -fsanitize=address server.c -o server
 
 sanitized-client:
-	gcc $(CFLAGS) -fsanitize=address client.c -o client
+	gcc $(CFLAGS) -pthread -fsanitize=address client.c tui.c -o client -lform -lncurses
 
 check: check-server check-client
 
@@ -28,4 +34,5 @@ check-client:
 	./checkpatch.pl --no-tree -f client.c
 
 clean:
-	rm server client
+	rm -f *.o
+	rm -f server client
