@@ -96,13 +96,7 @@ void *reciever(void *arg)
 			break;
 		}
 
-		char *ptr = strstr(str_msg, "->");
-		if (ptr == NULL) {
-			tui_add_msg(NULL, str_msg);
-		} else {
-			*ptr = '\0';
-			tui_add_msg(str_msg, ptr + 2);
-		}
+		tui_add_msg(str_msg, str_msg + strlen(str_msg) + 1);
 	}
 
 	return NULL;
